@@ -173,6 +173,16 @@ KNOWLEDGE = (
 )
 
 
+# Brain fallback: brain.models (admin panel: comma/newline separated) tried in
+# order on the same base_url + api_key. Failure = network error/timeout,
+# HTTP >= 400, or HTTP 200 with empty content (known upstream fault). A failed
+# model gets a 5-minute in-memory cooldown; when every entry is cooling, the
+# cooldowns clear so everything gets retried. Single-model configs behave
+# exactly as before.
+BRAIN_COOL_SECS = 300
+_BRAIN_COOL = {}
+
+
 def brain_reply(prompt: str, author: str, channel_id: str, extra_system: str = "") -> str:
     c = cfg()["brain"]
     system = CORE_RULES + KNOWLEDGE + cfg().get("system_context", "")
@@ -181,16 +191,38 @@ def brain_reply(prompt: str, author: str, channel_id: str, extra_system: str = "
     msgs = [{"role": "system", "content": system}]
     msgs += _HISTORY.get(channel_id, [])
     msgs.append({"role": "user", "content": f"Discord user '{author}' says: {prompt}"})
-    body = json.dumps({"model": c.get("model", ""), "messages": msgs, "max_tokens": 600}).encode("utf-8")
-    req = urllib.request.Request(
-        c.get("base_url", "").rstrip("/") + "/chat/completions",
-        data=body,
-        headers={"Content-Type": "application/json", "Authorization": "Bearer " + c.get("api_key", ""),
-                 "User-Agent": "MarsAI-Bot/1.0"},
-    )
-    with urllib.request.urlopen(req, timeout=90) as r:
-        data = json.loads(r.read().decode("utf-8"))
-    return (data["choices"][0]["message"]["content"] or "").strip()
+    models = c.get("models") or ([c.get("model")] if c.get("model") else [])
+    base_url = c.get("base_url", "").rstrip("/")
+    api_key = c.get("api_key", "")
+    now = time.monotonic()
+    if models and all(_BRAIN_COOL.get(m, 0) > now for m in models):
+        _BRAIN_COOL.clear()
+    last_err = None
+    for m in models:
+        if _BRAIN_COOL.get(m, 0) > now:
+            continue
+        try:
+            body = json.dumps({"model": m, "messages": msgs, "max_tokens": 600}).encode("utf-8")
+            req = urllib.request.Request(
+                base_url + "/chat/completions",
+                data=body,
+                headers={"Content-Type": "application/json", "Authorization": "Bearer " + api_key,
+                         "User-Agent": "MarsAI-Bot/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=90) as r:
+                data = json.loads(r.read().decode("utf-8"))
+            text = (data["choices"][0]["message"]["content"] or "").strip()
+            if not text:
+                raise ValueError("empty completion")
+            _BRAIN_COOL.pop(m, None)
+            return text
+        except Exception as e:
+            last_err = e
+            _BRAIN_COOL[m] = time.monotonic() + BRAIN_COOL_SECS
+            print(f"[brain] model {m} failed ({e}); trying next", flush=True)
+    if last_err is not None:
+        raise last_err
+    raise RuntimeError("no brain models configured")
 
 
 def chunk(text: str, size: int = 1900):
