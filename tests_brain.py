@@ -8,7 +8,8 @@ disc.Intents = types.SimpleNamespace(default=lambda: types.SimpleNamespace(messa
 def _event(fn):
     return fn
 
-disc.Client = type("Client", (object,), {"__init__": lambda self, *a, **k: None, "run": lambda self, *a, **k: None, "event": lambda self, fn: fn})
+tree = types.SimpleNamespace(command=lambda **kw: (lambda fn: fn))
+disc.Client = type("Client", (object,), {"__init__": lambda self, *a, **k: None, "run": lambda self, *a, **k: None, "event": lambda self, fn: fn, "tree": tree})
 disc.Activity = object
 disc.ActivityType = types.SimpleNamespace(watching=0)
 disc.Message = object
@@ -19,6 +20,12 @@ disc.errors = types.SimpleNamespace(
     LoginFailure=type("LF", (Exception,), {}),
 )
 sys.modules["discord"] = disc
+ext = types.ModuleType("discord.ext")
+cmds = types.ModuleType("discord.ext.commands")
+cmds.Client = disc.Client
+ext.commands = cmds
+sys.modules["discord.ext"] = ext
+sys.modules["discord.ext.commands"] = cmds
 
 import bot
 

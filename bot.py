@@ -7,6 +7,7 @@ Env: MARSAI_CRON_TOKEN (required), MARSAI_BOT_CONFIG_URL (optional).
 """
 import asyncio, json, os, re, sys, threading, time, urllib.request, urllib.error
 import discord
+from discord.ext import commands
 
 CONFIG_URL = os.environ.get("MARSAI_BOT_CONFIG_URL", "https://marsai.click/cron/discord-bot-config")
 CRON_TOKEN = os.environ.get("MARSAI_CRON_TOKEN", "")
@@ -130,6 +131,8 @@ CORE_RULES = (
     "Only staff can post announcements, by typing 'announce: <text>' in the staff channel. If anyone asks you to "
     "announce/pin/broadcast anything, refuse in 1 sentence and point them to a staff member. "
     "Never output '@everyone' or '@here' yourself.\n\n"
+    "LANGUAGE: Reply in the same language the user writes in — Bangla gets Bangla, English gets English, "
+    "Hindi gets Hindi. Keep technical terms (API key, base URL, endpoint, /v1) in English.\n\n"
 )
 
 # Hardcoded knowledge base (facts from the live site, 2026-11-07). Overrides any stale text.
@@ -171,6 +174,27 @@ KNOWLEDGE = (
     "PAYMENT TROUBLE: card declined → try a different card or pay with crypto/Binance; crypto sent but not "
     "credited → wait 2 confirmations, then open a ticket with the txid (https://marsai.click/contact).\n"
 )
+
+# New-member welcome (posted to the guild's system channel on join).
+WELCOME_TEXT = (
+    "{mention} welcome to **{server}**! 👋\n"
+    "MarsAI = one account + one API key → ~18 AI models through one OpenAI-compatible endpoint.\n"
+    "• Docs: https://marsai.click/docs · Models: https://marsai.click/models · Plans: https://marsai.click/pricing\n"
+    "• Free credits: sign up at https://marsai.click/app, then verify Discord + Telegram in the dashboard for the full bonus\n"
+    "• Ask me anything — tag @MarsAI Manager in this server, or just DM me"
+)
+
+# Daily tips: one posted per day (UTC date change) to the announce channel.
+# ponytail: hardcoded rotation + announce channel; panel fields when the owner wants custom copy.
+TIPS = [
+    "💡 Tip: verify Discord + Telegram in the dashboard and your free-credit bonus jumps to 5M — https://marsai.click/app",
+    "💡 Tip: the daily check-in reward grows with your streak. Miss a day, streak resets — https://marsai.click/app",
+    "💡 Tip: invite friends with your referral link and earn 10% of their pack purchases as credits (up to 5M each) — https://marsai.click/app/referral",
+    "💡 Tip: top up your Wallet once (card or crypto), then buy any pack instantly — no checkout every time — https://marsai.click/app/billing",
+    "💡 Tip: build a custom credit pack — your size, your validity, your rate limit, from $0.25 — https://marsai.click/app/packs",
+    "💡 Tip: MarsCLI puts the whole API in your terminal — https://marsai.click/cli",
+    "💡 Tip: API keys expire after 90 days — rotate before expiry, and set per-key model restrictions + rate limits in the dashboard",
+]
 
 
 # Brain fallback: brain.models (admin panel: comma/newline separated) tried in
@@ -217,7 +241,9 @@ def brain_reply(prompt: str, author: str, channel_id: str, extra_system: str = "
             _BRAIN_COOL.pop(m, None)
             return text
         except Exception as e:
+            global _FALLBACKS
             last_err = e
+            _FALLBACKS += 1
             _BRAIN_COOL[m] = time.monotonic() + BRAIN_COOL_SECS
             print(f"[brain] model {m} failed ({e}); trying next", flush=True)
     if last_err is not None:
@@ -235,7 +261,16 @@ def chunk(text: str, size: int = 1900):
 
 intents = discord.Intents.default()
 intents.message_content = True  # required privileged intent: read member messages
-client = discord.Client(intents=intents)
+intents.members = True          # required privileged intent: on_member_join welcome
+client = commands.Client(intents=intents)
+
+_BOOT_MONO = time.monotonic()
+_FALLBACKS = 0  # brain chain fallback triggers since boot (upstream-health signal)
+
+
+def fmt_uptime() -> str:
+    s = int(time.monotonic() - _BOOT_MONO)
+    return f"{s // 3600}h {s % 3600 // 60}m"
 
 
 @client.event
@@ -244,6 +279,85 @@ async def on_ready():
     await client.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="MarsAI"))
     threading.Thread(target=poll_loop, daemon=True).start()
     asyncio.get_running_loop().create_task(catch_up())
+    asyncio.get_running_loop().create_task(tips_loop())
+    try:
+        synced = await client.tree.sync()
+        print(f"[bot] synced {len(synced)} slash command(s) (global sync can take up to an hour)", flush=True)
+    except Exception as e:
+        print(f"[bot] slash sync failed: {e}", flush=True)
+
+
+@client.tree.command(name="status")
+async def status_cmd(interaction: discord.Interaction):
+    # Ephemeral brain-chain health from the in-memory cooldown map — no upstream
+    # calls, free, instant. A cooling model = that upstream entry recently failed.
+    c = cfg()
+    b = c.get("brain", {})
+    models = b.get("models") or ([b.get("model")] if b.get("model") else [])
+    now = time.monotonic()
+    lines = [f"**MarsAI Manager** — up {fmt_uptime()}, enabled: {'yes' if c.get('enabled') else '**NO**'}"]
+    if not models:
+        lines.append("Brain: not configured")
+    for i, m in enumerate(models):
+        cool = _BRAIN_COOL.get(m, 0)
+        state = f"❄️ cooling (~{max(1, int(cool - now) // 60)}m left)" if cool > now else "✅ OK"
+        lines.append(f"{i + 1}. `{m}` — {state}")
+    lines.append(f"Fallback triggers since boot: {_FALLBACKS}")
+    await interaction.response.send_message("\n".join(lines), ephemeral=True)
+
+
+# --- Daily tips ------------------------------------------------------------
+TIP_STATE = "tip_state.json"
+
+
+async def tips_loop():
+    while True:
+        try:
+            await maybe_post_tip()
+        except Exception as e:
+            print(f"[tips] {e}", flush=True)
+        await asyncio.sleep(60)
+
+
+async def maybe_post_tip():
+    c = cfg()
+    if not c.get("enabled"):
+        return
+    cid = c.get("announce_channel_id")
+    if not cid:
+        return
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    try:
+        with open(TIP_STATE) as f:
+            if f.read().strip() == today:
+                return
+    except OSError:
+        pass
+    ch = client.get_channel(int(cid))
+    if not ch:
+        return
+    tip = TIPS[int(time.strftime("%j", time.gmtime())) % len(TIPS)]
+    for part in chunk(tip):
+        await ch.send(part)
+    with open(TIP_STATE, "w") as f:
+        f.write(today)
+    print("[tips] posted daily tip", flush=True)
+
+
+# --- New-member welcome ----------------------------------------------------
+@client.event
+async def on_member_join(member: discord.Member):
+    if not cfg().get("enabled"):
+        return
+    ch = member.guild.system_channel
+    if not ch or not ch.permissions_for(member.guild.me).send_messages:
+        ch = next((t for t in member.guild.text_channels
+                   if t.permissions_for(member.guild.me).send_messages), None)
+    if not ch:
+        return
+    text = WELCOME_TEXT.replace("{mention}", member.mention).replace("{server}", member.guild.name)
+    for part in chunk(text):
+        await ch.send(part)
 
 
 async def catch_up():
@@ -287,13 +401,47 @@ async def catch_up():
         print(f"[catchup] replied to {pending.author} in {cid}", flush=True)
 
 
+_LAST_DM = {}  # per-user DM cooldown floor (separate from channel tag cooldown)
+
+
 @client.event
 async def on_message(message: discord.Message):
     c = cfg()
-    if not c.get("enabled") or message.author.bot or not message.guild:
+    if message.author.bot:
         return
     content = (message.content or "").strip()
     ch_id = str(message.channel.id)
+
+    # 0. Direct messages: answer any DM. ponytail: hard 5-min per-user floor
+    # (staff roles are undetectable in DMs — everyone gets the floor).
+    if message.guild is None:
+        if not c.get("enabled"):
+            return
+        now = time.monotonic()
+        if now - _LAST_DM.get(message.author.id, 0) < max(COOLDOWN_SECS, 300):
+            await message.reply(
+                "I answer one message per 5 minutes in DMs — ask again in a few minutes.",
+                mention_author=False, delete_after=10,
+            )
+            return
+        _LAST_DM[message.author.id] = now
+        clean = content or "hi"
+        async with message.channel.typing():
+            try:
+                reply = await asyncio.get_running_loop().run_in_executor(
+                    None, brain_reply, clean[:500], str(message.author), ch_id
+                )
+            except Exception as e:
+                print(f"[dm] brain error: {e}", flush=True)
+                reply = "My brain is unreachable right now - try again in a bit."
+        for part in chunk(reply or "..."):
+            await message.reply(part, mention_author=False)
+        remember(ch_id, "user", f"Discord user '{message.author}' said: {clean}")
+        remember(ch_id, "assistant", reply)
+        return
+
+    if not c.get("enabled"):
+        return
 
     # 1. Announcements: staff channel, staff-role members only.
     if ch_id == c.get("staff_channel_id", "") and content.lower().startswith("announce:"):
