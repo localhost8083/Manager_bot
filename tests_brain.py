@@ -95,4 +95,22 @@ try:
 except Exception:
     pass
 
-print("PASS brain chain (failover, empty-200, cooldown, retry-all, legacy, raise)")
+# image attachment: multimodal content parts on the wire
+seen = {}
+def fake_img(req, timeout=0):
+    seen["body"] = json.loads(req.data.decode())
+    seen["auth"] = req.headers.get("Authorization")
+    return R({"choices": [{"message": {"content": "I see it"}}]})
+urllib.request.urlopen = fake_img
+bot.CFG = {"brain": {"base_url": "https://x/v1/", "api_key": "k9", "models": ["good"]}}
+bot._BRAIN_COOL.clear()
+out = bot.brain_reply("what is this", "u", "c1", image_urls=["data:image/png;base64,AAA"])
+assert out == "I see it"
+content = seen["body"]["messages"][-1]["content"]
+assert seen["body"]["model"] == "good"
+assert isinstance(content, list) and len(content) == 2, content
+assert content[0]["type"] == "text" and "what is this" in content[0]["text"]
+assert content[1]["type"] == "image_url" and content[1]["image_url"]["url"].startswith("data:image/png")
+assert seen["auth"] == "Bearer k9"
+
+print("PASS brain chain (failover, empty-200, cooldown, retry-all, legacy, raise, vision)")

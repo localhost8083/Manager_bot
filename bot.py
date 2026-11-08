@@ -5,7 +5,7 @@ Behavior: reply when tagged (watched channels), delete blocked words (staff exem
 repost "announce: text" from staff channel to announce channel with @everyone.
 Env: MARSAI_CRON_TOKEN (required), MARSAI_BOT_CONFIG_URL (optional).
 """
-import asyncio, json, os, re, sys, threading, time, urllib.request, urllib.error
+import asyncio, base64, json, os, re, sys, threading, time, urllib.request, urllib.error
 import discord
 from discord.ext import commands
 
@@ -207,14 +207,45 @@ BRAIN_COOL_SECS = 300
 _BRAIN_COOL = {}
 
 
-def brain_reply(prompt: str, author: str, channel_id: str, extra_system: str = "") -> str:
+# Attachments: images (screenshots of errors, API responses) are read by the
+# brain when the configured model supports vision. Cap 2 images / 1.5 MB each
+# (base64 inflates ~4/3 — keeps request bodies sane for free-tier gateways).
+MAX_IMAGES = 2
+MAX_IMAGE_BYTES = 1_500_000
+
+
+async def collect_images(message: discord.Message) -> list:
+    urls = []
+    for a in getattr(message, "attachments", []) or []:
+        ct = (a.content_type or "").lower()
+        if not ct.startswith("image/") or a.size > MAX_IMAGE_BYTES:
+            continue
+        try:
+            data = await a.read()
+        except Exception as e:
+            print(f"[img] download failed ({e})", flush=True)
+            continue
+        urls.append(f"data:{ct};base64,{base64.b64encode(data).decode()}")
+        if len(urls) >= MAX_IMAGES:
+            break
+    return urls
+
+
+def brain_reply(prompt: str, author: str, channel_id: str, extra_system: str = "", image_urls=None) -> str:
     c = cfg()["brain"]
     system = CORE_RULES + KNOWLEDGE + cfg().get("system_context", "")
     if extra_system:
         system += "\n\n" + extra_system
     msgs = [{"role": "system", "content": system}]
     msgs += _HISTORY.get(channel_id, [])
-    msgs.append({"role": "user", "content": f"Discord user '{author}' says: {prompt}"})
+    if image_urls:
+        parts = [{"type": "text", "text": f"Discord user '{author}' says: {prompt} "
+                  f"[{len(image_urls)} image(s) attached — read them for context]"}]
+        for u in image_urls:
+            parts.append({"type": "image_url", "image_url": {"url": u}})
+        msgs.append({"role": "user", "content": parts})
+    else:
+        msgs.append({"role": "user", "content": f"Discord user '{author}' says: {prompt}"})
     models = c.get("models") or ([c.get("model")] if c.get("model") else [])
     base_url = c.get("base_url", "").rstrip("/")
     api_key = c.get("api_key", "")
@@ -426,10 +457,11 @@ async def on_message(message: discord.Message):
             return
         _LAST_DM[message.author.id] = now
         clean = content or "hi"
+        images = await collect_images(message)
         async with message.channel.typing():
             try:
                 reply = await asyncio.get_running_loop().run_in_executor(
-                    None, brain_reply, clean[:500], str(message.author), ch_id
+                    None, brain_reply, clean[:500], str(message.author), ch_id, "", images or None
                 )
             except Exception as e:
                 print(f"[dm] brain error: {e}", flush=True)
@@ -490,8 +522,9 @@ async def on_message(message: discord.Message):
                 )
                 async with message.channel.typing():
                     try:
+                        images = await collect_images(message)
                         reply = await asyncio.get_running_loop().run_in_executor(
-                            None, brain_reply, content[:500], str(message.author), ch_id, note
+                            None, brain_reply, content[:500], str(message.author), ch_id, note, images or None
                         )
                     except Exception as e:
                         print(f"[bot] brain error: {e}", flush=True)
@@ -548,10 +581,11 @@ async def on_message(message: discord.Message):
         clean = content.replace(f"<@{me.id}>", "").replace(f"<@!{me.id}>", "").strip()
         if not clean:
             clean = "hi"
+        images = await collect_images(message)
         async with message.channel.typing():
             try:
                 reply = await asyncio.get_running_loop().run_in_executor(
-                    None, brain_reply, clean, str(message.author), ch_id
+                    None, brain_reply, clean, str(message.author), ch_id, "", images or None
                 )
             except Exception as e:
                 print(f"[bot] brain error: {e}", flush=True)
