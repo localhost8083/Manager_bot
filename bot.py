@@ -318,7 +318,7 @@ def chunk(text: str, size: int = 1900):
 intents = discord.Intents.default()
 intents.message_content = True  # required privileged intent: read member messages
 intents.members = True          # required privileged intent: on_member_join welcome
-client = commands.Client(intents=intents)
+client = commands.Bot(command_prefix="!", intents=intents)
 
 _BOOT_MONO = time.monotonic()
 _FALLBACKS = 0  # brain chain fallback triggers since boot (upstream-health signal)
