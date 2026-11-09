@@ -193,24 +193,25 @@ KNOWLEDGE = (
 )
 
 # New-member welcome (posted to the guild's system channel on join).
+# Masked links + suppress_embeds: clean inline text, no giant unfurl cards.
 WELCOME_TEXT = (
     "{mention} welcome to **{server}**! 👋\n"
     "MarsAI = one account + one API key → ~18 AI models through one OpenAI-compatible endpoint.\n"
-    "• Docs: https://marsai.click/docs · Models: https://marsai.click/models · Plans: https://marsai.click/pricing\n"
-    "• Free credits: sign up at https://marsai.click/app, then verify Discord + Telegram in the dashboard for the full bonus\n"
+    "• [Docs](https://marsai.click/docs) · [Models](https://marsai.click/models) · [Plans](https://marsai.click/pricing)\n"
+    "• Free credits: [sign up](https://marsai.click/app), then verify Discord + Telegram in the dashboard for the full bonus\n"
     "• Ask me anything — tag @MarsAI Manager in this server, or just DM me"
 )
 
 # Daily tips: one posted per day (UTC date change) to the announce channel.
 # ponytail: hardcoded rotation + announce channel; panel fields when the owner wants custom copy.
 TIPS = [
-    "💡 Tip: verify Discord + Telegram in the dashboard and your free-credit bonus jumps to 5M — https://marsai.click/app",
-    "💡 Tip: the daily check-in reward grows with your streak. Miss a day, streak resets — https://marsai.click/app",
-    "💡 Tip: invite friends with your referral link and earn 10% of their pack purchases as credits (up to 5M each) — https://marsai.click/app/referral",
-    "💡 Tip: top up your Wallet once (card or crypto), then buy any pack instantly — no checkout every time — https://marsai.click/app/billing",
-    "💡 Tip: build a custom credit pack — your size, your validity, your rate limit, from $0.25 — https://marsai.click/app/packs",
-    "💡 Tip: MarsCLI puts the whole API in your terminal — https://marsai.click/cli",
-    "💡 Tip: API keys expire after 90 days — rotate before expiry, and set per-key model restrictions + rate limits in the dashboard",
+    "💡 Tip: verify Discord + Telegram in the dashboard and your free-credit bonus jumps to 5M — [dashboard](https://marsai.click/app)",
+    "💡 Tip: the daily check-in reward grows with your streak. Miss a day, streak resets — [check in](https://marsai.click/app)",
+    "💡 Tip: invite friends with your referral link and earn 10% of their pack purchases as credits (up to 5M each) — [referrals](https://marsai.click/app/referral)",
+    "💡 Tip: top up your Wallet once (card or crypto), then buy any pack instantly — no checkout every time — [billing](https://marsai.click/app/billing)",
+    "💡 Tip: build a custom credit pack — your size, your validity, your rate limit, from $0.25 — [packs](https://marsai.click/app/packs)",
+    "💡 Tip: MarsCLI puts the whole API in your terminal — [get it](https://marsai.click/cli)",
+    "💡 Tip: API keys expire after 90 days — rotate before expiry, and set per-key model restrictions + rate limits in the [dashboard](https://marsai.click/app)",
 ]
 
 
@@ -393,7 +394,7 @@ async def maybe_post_tip():
         return
     tip = TIPS[int(time.strftime("%j", time.gmtime())) % len(TIPS)]
     for part in chunk(tip):
-        await ch.send(part)
+        await ch.send(part, suppress_embeds=True)
     with open(TIP_STATE, "w") as f:
         f.write(today)
     print("[tips] posted daily tip", flush=True)
@@ -412,7 +413,7 @@ async def on_member_join(member: discord.Member):
         return
     text = WELCOME_TEXT.replace("{mention}", member.mention).replace("{server}", member.guild.name)
     for part in chunk(text):
-        await ch.send(part)
+        await ch.send(part, suppress_embeds=True)
 
 
 async def catch_up():
