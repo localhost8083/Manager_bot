@@ -466,7 +466,7 @@ async def catch_up():
                 print(f"[catchup] brain error: {e}", flush=True)
                 continue
         for part in chunk(reply or "..."):
-            await pending.reply(part, mention_author=False)
+            await pending.reply(part, mention_author=False, suppress_embeds=True)
         remember(cid, "user", f"Discord user '{pending.author}' said: {clean}")
         remember(cid, "assistant", reply)
         print(f"[catchup] replied to {pending.author} in {cid}", flush=True)
@@ -507,7 +507,7 @@ async def on_message(message: discord.Message):
                 print(f"[dm] brain error: {e}", flush=True)
                 reply = "My brain is unreachable right now - try again in a bit."
         for part in chunk(reply or "..."):
-            await message.reply(part, mention_author=False)
+            await message.reply(part, mention_author=False, suppress_embeds=True)
         remember(ch_id, "user", f"Discord user '{message.author}' said: {clean}")
         remember(ch_id, "assistant", reply)
         return
@@ -523,7 +523,7 @@ async def on_message(message: discord.Message):
             text = content.split(":", 1)[1].strip()
             target = client.get_channel(int(c["announce_channel_id"])) if c.get("announce_channel_id") else None
             if target and text:
-                await target.send(f"@everyone\n{text}", allowed_mentions=discord.AllowedMentions(everyone=True))
+                await target.send(f"@everyone\n{text}", allowed_mentions=discord.AllowedMentions(everyone=True), suppress_embeds=True)
                 await message.add_reaction("✅")
             else:
                 await message.reply("Announce failed: check announce channel ID config or message text.")
@@ -570,7 +570,7 @@ async def on_message(message: discord.Message):
                         print(f"[bot] brain error: {e}", flush=True)
                         reply = None
                 if reply:
-                    await message.reply(chunk(reply)[0], mention_author=False)
+                    await message.reply(chunk(reply)[0], mention_author=False, suppress_embeds=True)
             return  # repeats (or staff paste): stay silent
 
     # 4. Tagged reply: only in watched channels, only when the bot is mentioned.
@@ -608,7 +608,7 @@ async def on_message(message: discord.Message):
             if not extracted or extracted.upper().startswith("NOANNOUNCE"):
                 pass  # not an announce request — fall through to normal reply
             else:
-                await target.send(f"@everyone\n{extracted}", allowed_mentions=discord.AllowedMentions(everyone=True))
+                await target.send(f"@everyone\n{extracted}", allowed_mentions=discord.AllowedMentions(everyone=True), suppress_embeds=True)
                 await message.add_reaction("✅")
                 return
         if on_cooldown(message.author.id, staff):
@@ -631,7 +631,7 @@ async def on_message(message: discord.Message):
                 print(f"[bot] brain error: {e}", flush=True)
                 reply = "My brain is unreachable right now - try again in a bit."
         for part in chunk(reply or "..."):
-            await message.reply(part, mention_author=False)
+            await message.reply(part, mention_author=False, suppress_embeds=True)
         remember(ch_id, "user", f"Discord user '{message.author}' said: {clean}")
         remember(ch_id, "assistant", reply)
 
