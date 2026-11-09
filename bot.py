@@ -257,7 +257,7 @@ def brain_reply(prompt: str, author: str, channel_id: str, extra_system: str = "
         if _BRAIN_COOL.get(m, 0) > now:
             continue
         try:
-            body = json.dumps({"model": m, "messages": msgs, "max_tokens": 600}).encode("utf-8")
+            body = json.dumps({"model": m, "messages": msgs, "max_tokens": 1500}).encode("utf-8")
             req = urllib.request.Request(
                 base_url + "/chat/completions",
                 data=body,
