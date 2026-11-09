@@ -152,7 +152,7 @@ CORE_RULES = (
     "Hindi gets Hindi. Keep technical terms (API key, base URL, endpoint, /v1) in English.\n\n"
 )
 
-# Hardcoded knowledge base (facts from the live site, 2026-11-07). Overrides any stale text.
+# Hardcoded knowledge base (facts from the live site, 2026-11-09). Overrides any stale text.
 KNOWLEDGE = (
     "ALWAYS-KNOWN MARSAI FACTS (current, use these; if admin context below contradicts them, trust these):\n"
     "WHAT: MarsAI (https://marsai.click) is an AI API gateway. One account + one API key + one OpenAI-compatible "
@@ -169,18 +169,22 @@ KNOWLEDGE = (
     "• Ultra — $24.99 → 1B credits / 60 days (240 req/min, 5000 req/day) — BEST VALUE\n"
     "• Custom pack — build your own size + validity + rate limit in the dashboard, from $0.25\n"
     "• Buy: https://marsai.click/pricing\n"
-    "PAYMENTS — always list ALL of these when asked about payment methods:\n"
-    "• Card (Visa/Mastercard) — checkout by Paddle\n"
-    "• PayPal, UPI, Apple Pay, Google Pay — at checkout\n"
-    "• Crypto — USDT & 200+ coins via NOWPayments / OxaPay (TRC20/BEP20 etc.)\n"
-    "• Binance direct — zero fees, from $2\n"
-    "TIP: top up the Wallet once (card or crypto), then buy any pack instantly — no checkout each time. "
-    "Wallet top-up range: $15–$500 (Binance direct from $2). Billing page: https://marsai.click/app/billing\n"
+    "PAYMENTS (live reality — never invent methods): the billing page https://marsai.click/app/billing always shows "
+    "what's currently available. Right now: crypto via OxaPay — USDT (TRC20/BEP20) and other coins, paid into your "
+    "Wallet, then spend the Wallet on any pack. Card checkout (Paddle, Visa/Mastercard) is being onboarded and will "
+    "appear on the billing page when live — if a user asks about cards today, say crypto now, cards coming soon.\n"
+    "TIP: top up the Wallet once, then buy any pack instantly — no checkout each time. Billing page: https://marsai.click/app/billing\n"
     "FREE TIER: free credits on signup — Discord + Telegram verification unlocks the full bonus (5M). "
     "Free keys: 60 req/min, 200 req/day across all models.\n"
-    "EXTRAS: daily check-in rewards (grows with streak) · referral program: 10% of invited users' purchases as "
-    "credits (up to 5M per invite) · redeem codes from giveaways · currency selector (USD/INR/BDT) · "
-    "in-dashboard playground · MarsCLI terminal client (https://marsai.click/cli, download https://marsai.click/download)\n"
+    "DAILY CHECK-IN (exact numbers): https://marsai.click/app/checkin — claim once per day. Day 1 = 100 Free Credits, "
+    "each streak day adds +100 (day 2 = 200, day 3 = 300…), capped at 1,000/day from day 10. Miss a day and the "
+    "streak resets to day 1. Free credits burn before pack credits.\n"
+    "MARSCLI BONUS (exact): the first time a user runs MarsCLI (the terminal client), 5,000,000 bonus credits are "
+    "granted automatically — usable ONLY inside MarsCLI (not the dashboard/API), and they expire 30 days after "
+    "granting. Get MarsCLI: https://marsai.click/cli\n"
+    "EXTRAS: referral program: 10% of invited users' purchases as credits (up to 5M per invite, "
+    "https://marsai.click/app/referrals) · redeem codes from giveaways · currency selector (USD/INR/BDT) · "
+    "in-dashboard playground · vision models read images in chat\n"
     "API KEYS: expire after 90 days — rotate before expiry (reminder email first). Key settings: model restrictions "
     "and rate limits per key in the dashboard (https://marsai.click/app).\n"
     "PRIVATE DATA RULE: you cannot see any user's account data (balance/keys/usage). Direct them to "
@@ -188,8 +192,8 @@ KNOWLEDGE = (
     "POLICY SNIPPETS: consumed/expired credits non-refundable; unused pack credits refundable within 14 days "
     "(https://marsai.click/refund); upstream outages are announced on Discord + dashboard; full terms "
     "https://marsai.click/terms · privacy https://marsai.click/privacy · support https://marsai.click/contact\n"
-    "PAYMENT TROUBLE: card declined → try a different card or pay with crypto/Binance; crypto sent but not "
-    "credited → wait 2 confirmations, then open a ticket with the txid (https://marsai.click/contact).\n"
+    "PAYMENT TROUBLE: crypto sent but not credited → wait 2 confirmations (can take ~30 min), then open a ticket with "
+    "the txid (https://marsai.click/contact). Wallet balance shows instantly once confirmed.\n"
 )
 
 # New-member welcome (posted to the guild's system channel on join).
@@ -208,7 +212,7 @@ TIPS = [
     "💡 Tip: verify Discord + Telegram in the dashboard and your free-credit bonus jumps to 5M — [dashboard](https://marsai.click/app)",
     "💡 Tip: the daily check-in reward grows with your streak. Miss a day, streak resets — [check in](https://marsai.click/app)",
     "💡 Tip: invite friends with your referral link and earn 10% of their pack purchases as credits (up to 5M each) — [referrals](https://marsai.click/app/referral)",
-    "💡 Tip: top up your Wallet once (card or crypto), then buy any pack instantly — no checkout every time — [billing](https://marsai.click/app/billing)",
+    "💡 Tip: top up your Wallet once, then buy any pack instantly — no checkout every time — [billing](https://marsai.click/app/billing)",
     "💡 Tip: build a custom credit pack — your size, your validity, your rate limit, from $0.25 — [packs](https://marsai.click/app/packs)",
     "💡 Tip: MarsCLI puts the whole API in your terminal — [get it](https://marsai.click/cli)",
     "💡 Tip: API keys expire after 90 days — rotate before expiry, and set per-key model restrictions + rate limits in the [dashboard](https://marsai.click/app)",
